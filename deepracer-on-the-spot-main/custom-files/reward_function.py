@@ -1,33 +1,46 @@
 def reward_function(params):
-    '''
-    Example of penalize steering, which helps mitigate zig-zag behaviors
-    '''
-    
-    # Read input parameters
-    distance_from_center = params['distance_from_center']
     track_width = params['track_width']
-    steering = abs(params['steering_angle']) # Only need the absolute steering angle
+    distance_from_center = params['distance_from_center']
+    all_wheels_on_track = params['all_wheels_on_track']
+    speed = params['speed']
+    steering_angle = params['steering_angle']
+    progress = params['progress']
+    steps = params['steps']
+    is_offtrack = not all_wheels_on_track
 
-    # Calculate 3 marks that are farther and father away from the center line
-    marker_1 = 0.1 * track_width
-    marker_2 = 0.25 * track_width
-    marker_3 = 0.5 * track_width
+    # Set the default reward
+    reward = 1.0
 
-    # Give higher reward if the car is closer to center line and vice versa
-    if distance_from_center <= marker_1:
-        reward = 1
-    elif distance_from_center <= marker_2:
-        reward = 0.5
-    elif distance_from_center <= marker_3:
-        reward = 0.1
-    else:
-        reward = 1e-3  # likely crashed/ close to off track
+    # Add rewards and penalties based on different conditions
+    # Reward the agent for staying on the track and making progress
+    if not is_offtrack and all_wheels_on_track:
+        reward += 0.5 * speed * progress
 
-    # Steering penality threshold, change the number based on your action space setting
-    ABS_STEERING_THRESHOLD = 15
+        # Additional reward for being close to the center of the track
+        reward += 0.1 * (track_width - distance_from_center)
 
-    # Penalize reward if the car is steering too much
-    if steering > ABS_STEERING_THRESHOLD:
-        reward *= 0.8
+        if abs(steering_angle) > 15 and speed > 2.0:
+            reward += 2.0
+
+    # Add a penalty for taking sharp turns to avoid zig-zagging behavior
+    reward -= 0.2 * abs(steering_angle)
+
+    # Add a penalty for slow progress to encourage faster completion
+    reward -= 0.2 * (1.0 - progress)
+
+    # Additional penalty and recovery reward for drifting outside the track
+    if is_offtrack:
+        reward -= 2.0  # A penalty for drifting outside the track
+        if abs(steering_angle) > 15 and speed > 2.0:
+            reward += 1.0
+
+            if steering_angle < 0:
+                reward += 2.0
+
+            elif steering_angle > 0:
+                reward += 2.0
+
+    if progress == 100:
+        reward += 10.0
 
     return float(reward)
